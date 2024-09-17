@@ -108,3 +108,40 @@ def load_data(dir, use="regression", nb_classes=11, gaussian_blur=(False, 0), ex
         return np.array(X), np.array(y), get_X_extra(np.array(x_extra), -.5, 2.)
     else:
         return np.array(X), np.array(y)
+
+def plot_classification_history(history):
+    _, ax = plt.subplots(1, 2, figsize=(15, 5))
+    ax[0].plot(history.history["loss"], label="loss")
+    ax[0].plot(history.history["val_loss"], label="val_loss")
+    ax[0].legend()
+    ax[0].set_title("Loss")
+    ax[0].set_xlabel("Epochs")
+    ax[0].set_ylabel("Loss")
+    ax[0].set_ylim(0., 1.)
+
+    ax[1].plot(history.history["accuracy"], label="accuracy")
+    ax[1].plot(history.history["val_accuracy"], label="val_accuracy")
+    ax[1].legend()
+    ax[1].set_title("Accuracy")
+    ax[1].set_xlabel("Epochs")
+    ax[1].set_ylabel("Accuracy")
+    ax[1].set_ylim(0., 1.)
+
+    plt.show()
+
+    print(f"Final loss: {history.history['val_loss'][-1]:.2f} dB")
+    print(f"Final accuracy: {history.history['val_accuracy'][-1]:.2f}")
+
+def plot_regression_history(history):
+    _, ax = plt.subplots(1, 1, figsize=(8, 5))
+    ax.plot(history.history["loss"], label="loss")
+    ax.plot(history.history["val_loss"], label="val_loss")
+    ax.legend()
+    ax.set_title("Loss")
+    ax.set_xlabel("Epochs")
+    ax.set_ylabel("Loss")
+    ax.set_ylim(0., np.max(history.history["loss"]))
+
+    plt.show()
+
+    print(f"Final loss: {history.history['val_loss'][-1]:.2f} dB")
