@@ -109,39 +109,33 @@ def load_data(dir, use="regression", nb_classes=11, gaussian_blur=(False, 0), ex
     else:
         return np.array(X), np.array(y)
 
-def plot_classification_history(history):
-    _, ax = plt.subplots(1, 2, figsize=(15, 5))
-    ax[0].plot(history.history["loss"], label="loss")
-    ax[0].plot(history.history["val_loss"], label="val_loss")
-    ax[0].legend()
-    ax[0].set_title("Loss")
-    ax[0].set_xlabel("Epochs")
-    ax[0].set_ylabel("Loss")
-    ax[0].set_ylim(0., 1.)
+def plot_history(history, metric='accuracy'):
+    nb_epochs = len(history.history['loss'])
 
-    ax[1].plot(history.history["accuracy"], label="accuracy")
-    ax[1].plot(history.history["val_accuracy"], label="val_accuracy")
-    ax[1].legend()
-    ax[1].set_title("Accuracy")
-    ax[1].set_xlabel("Epochs")
-    ax[1].set_ylabel("Accuracy")
-    ax[1].set_ylim(0., 1.)
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
 
-    plt.show()
+    if metric in history.history:
+        metric = history.history[metric]
+        val_metric = history.history[f'val_{metric}']
+    
+    fig, axs = plt.subplots(1, 2, figsize=(15, 5))
+    axs[0].plot(nb_epochs, loss, label='loss')
+    axs[0].plot(nb_epochs, val_loss, label='val_loss')
+    axs[0].set_title('Loss')
+    axs[0].legend()
 
-    print(f"Final loss: {history.history['val_loss'][-1]:.2f} dB")
-    print(f"Final accuracy: {history.history['val_accuracy'][-1]:.2f}")
-
-def plot_regression_history(history):
-    _, ax = plt.subplots(1, 1, figsize=(8, 5))
-    ax.plot(history.history["loss"], label="loss")
-    ax.plot(history.history["val_loss"], label="val_loss")
-    ax.legend()
-    ax.set_title("Loss")
-    ax.set_xlabel("Epochs")
-    ax.set_ylabel("Loss")
-    ax.set_ylim(0., np.max(history.history["loss"]))
+    if metric in history.history:
+        axs[1].plot(nb_epochs, metric, label=f'{metric}')
+        axs[1].plot(nb_epochs, val_metric, label=f'val_{metric}')
+        axs[1].set_title(f'{metric}')
+        axs[1].legend()
 
     plt.show()
 
-    print(f"Final loss: {history.history['val_loss'][-1]:.2f} dB")
+    print(f"Train loss: {loss[-1]}")
+    print(f"Val loss: {val_loss[-1]}")
+
+    if metric in history.history:
+        print(f"Train {metric}: {metric[-1]}")
+        print(f"Val {metric}: {val_metric[-1]}")
