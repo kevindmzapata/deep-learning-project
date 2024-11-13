@@ -1,141 +1,65 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from keras.utils import to_categorical
+import pandas as pd
 import os
+import re
+import cv2 as cv
 
-spacing = {
-    "single_ch":    [14.3, 15.3, 16.3, 17.8, 19.3, 21.3, 23.3, 26.3, 28.3, 31.3, 36.3],
-    "18GHz":        [18, 19, 20, 23, 25, 27, 30, 32, 35, 40],
-    "17.6GHz":      [18, 19, 20, 21.5, 23, 25, 27, 30, 32, 35, 40],
-    "17GHz":        [18, 19, 20, 21.5, 23, 25, 27, 30, 32, 35, 40],
-    "16.5GHz":      [18, 19, 20, 21.5, 23, 25, 27, 30, 32, 35, 40],
-    "16GHz":        [18, 19, 20, 21.5, 23, 25, 27, 30, 32, 35, 40],
-    "15.5GHz":      [20, 21.5, 23, 25, 27, 30, 32, 35, 40],
-    "15GHz":        [23, 25, 27, 30, 32, 35, 40],
-}
-
-def get_class_array(nb_classes):
-    if nb_classes == 2:
-        return [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
-    elif nb_classes == 3:
-        return [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2]
-    elif nb_classes == 4:
-        return [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3]
-    elif nb_classes == 5:
-        return [0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4]
-    elif nb_classes == 11:
-        return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    else:
-        return print("Invalid number of classes")
-
-def get_osnr_value(value, nb_classes=2):
-    aux = get_class_array(nb_classes)
-    dict_osnr_norm = {
-        18: aux[0],
-        19: aux[1],
-        20: aux[2],
-        21.5: aux[3],
-        23: aux[4],
-        25: aux[5],
-        27: aux[6],
-        30: aux[7],
-        32: aux[8],
-        35: aux[9],
-        40: aux[10],
-    }
-    return dict_osnr_norm[value]
-
-def get_spacing_value(value):
-    dict_spacing = {
-        "single_ch": 0,
-        "18GHz": 1,
-        "17.6GHz": 2,
-        "17GHz": 3,
-        "16.5GHz": 4,
-        "16GHz": 5,
-        "15.5GHz": 6,
-        "15GHz": 7,
-    }
-    return dict_spacing[value]
-
-def get_X_extra(x, k0, k1):
-    x_extra = (np.eye(8)[x] * k0) * k1
-    return x_extra
-
-def load_data(dir, use="regression", nb_classes=11, gaussian_blur=(False, 0), extra_features=True):
-    X = []
-    y = []
-    x_extra = []
-
-    for key, value in spacing.items():
-        for osnr in value:
-            for i in range(9):
-                path = os.path.join(dir, key, f"{osnr}_dB_sample_{i}.png")
-
-                # Get image
-                # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-                img = plt.imread(path)
-
-                # Preprocess image
-                if gaussian_blur[0]:
-                    import cv2
-                    img = cv2.GaussianBlur(img, (gaussian_blur[1], gaussian_blur[1]), 0)
-
-                # Append to X
-                X.append(img)
-
-                # Append to x_extra
-                if extra_features:
-                    x_extra.append(get_spacing_value(key))
-
-                # Append to y
-                if use == "regression":
-                    y.append(osnr if key != "single_ch" else osnr + 3.7)
-                elif use == "classification":
-                    y.append(get_osnr_value(osnr, nb_classes) if key != "single_ch" else get_osnr_value(osnr + 3.7, nb_classes))
-                else:
-                    return print("Invalid use parameter")
+def create_database(directory='16GBd_0km', n_samples=12096):
+    check_if_exists = os.path.exists('images')
+    if check_if_exists and len(os.listdir('images')) > 0:
+        print('Images already exist in the directory')
+        return
+    pattern_1 = r'consY(\d+)\.(\d+)dB'
+    pattern_2 = r'consY(\d+)dB'
+    for dirs in os.listdir(directory)[::-1]:
+        for files in os.listdir(os.path.join(directory, dirs)):
+            try:
+                match = re.search(pattern_1, files)
+                dB = f'{match.group(1)}.{match.group(2)}'
+            except:
+                match = re.search(pattern_2, files)
+                dB = f'{match.group(1)}'
+            finally:
+                dB = float(dB)
+                if dirs == 'single_ch':
+                    dB += 3.7
                 
-    if use == "classification":
-        y = to_categorical(y, num_classes=nb_classes)
-    elif use == "regression":
-        y = np.array(y)
-        y = y.reshape(y.shape[0], 1)
-    else:
-        return print("Invalid use parameter")
+            path = os.path.join(directory, dirs, files)
+            data = pd.read_csv(path)
+            data = data.to_numpy()
+            
+            for i in range(0, data.shape[0], n_samples):
+                data_i = data[i:i + n_samples]
+                x, y = data_i[:, 0], data_i[:, 1]
+                hist, _, _ = np.histogram2d(x, y, bins=32, range=[[-5, 5], [-5, 5]])
+                hist = cv.normalize(hist, None, 0, 255, cv.NORM_MINMAX, cv.CV_8U)
                 
-    if extra_features:
-        return np.array(X), np.array(y), get_X_extra(np.array(x_extra), -.5, 2.)
-    else:
-        return np.array(X), np.array(y)
+                if not os.path.exists('images'):
+                    os.makedirs('images')
+                    
+                cv.imwrite(f'images/{dirs}_{dB}dB_sample({i//n_samples}).png', hist)
+                
+    print('Images have been created successfully')
+    return
 
-def plot_history(history, metric='accuracy'):
-    nb_epochs = len(history.history['loss'])
+def load_data(directory='images'):
+    images = []
+    labels = []
+    ch_s = []
+    spacings = ['single_ch', '18GHz', '17p6GHz', '17GHz', '16p5GHz', '16GHz', '15p5GHz', '15GHz']
 
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-
-    if metric in history.history:
-        metric = history.history[metric]
-        val_metric = history.history[f'val_{metric}']
-    
-    fig, axs = plt.subplots(1, 2, figsize=(15, 5))
-    axs[0].plot(nb_epochs, loss, label='loss')
-    axs[0].plot(nb_epochs, val_loss, label='val_loss')
-    axs[0].set_title('Loss')
-    axs[0].legend()
-
-    if metric in history.history:
-        axs[1].plot(nb_epochs, metric, label=f'{metric}')
-        axs[1].plot(nb_epochs, val_metric, label=f'val_{metric}')
-        axs[1].set_title(f'{metric}')
-        axs[1].legend()
-
-    plt.show()
-
-    print(f"Train loss: {loss[-1]}")
-    print(f"Val loss: {val_loss[-1]}")
-
-    if metric in history.history:
-        print(f"Train {metric}: {metric[-1]}")
-        print(f"Val {metric}: {val_metric[-1]}")
+    for files in os.listdir(directory) [::-1]:
+        image = cv.imread(os.path.join(directory, files), cv.IMREAD_GRAYSCALE)
+        images.append(image)
+        
+        for i, spacing in enumerate(spacings):
+            if spacing in files:
+                ch_s.append(i)
+        
+        match = re.search(r'(\d+\.\d+)dB', files)
+        labels.append(float(match.group(1)))
+        
+    images = np.array(images)
+    labels = np.array(labels)
+    ch_s = np.array(ch_s)
+    return images, labels, ch_s
